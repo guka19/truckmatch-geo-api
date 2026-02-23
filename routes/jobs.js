@@ -128,45 +128,41 @@ router.post("/:id/apply", async (req, res) => {
     }
 
     const transport = buildTransport();
-    if (!transport) {
-      return res.status(500).json({
-        error: "Email სერვისი არ არის კონფიგურირებული (SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS)",
+
+    if (transport) {
+      const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+      const subject = `TruckMatch განაცხადი: ${job.title} (${job.route})`;
+
+      const driverLine = [
+        user.name ? `სახელი: ${user.name}` : null,
+        user.email ? `ელ-ფოსტა: ${user.email}` : null,
+        user.phone ? `ტელ: ${user.phone}` : null,
+        user.location ? `ლოკაცია: ${user.location}` : null,
+        user.experience ? `გამოცდილება: ${user.experience}` : null,
+        Array.isArray(user.categories) && user.categories.length ? `კატეგორიები: ${user.categories.join(", ")}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const jobLine = [
+        `სათაური: ${job.title}`,
+        `მარშრუტი: ${job.route}`,
+        `ტიპი: ${job.type}`,
+        `ფასი: ${job.price}`,
+        `თარიღი: ${job.date}`,
+        job.phone ? `კონტაქტი (ვაკანსიაზე): ${job.phone}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const text = `გამარჯობა!\n\nმიღებულია ახალი განაცხადი TruckMatch-დან.\n\nვაკანსია:\n${jobLine}\n\nმძღოლი:\n${driverLine}\n`;
+
+      transport.sendMail({ from, to: ownerEmail, subject, text }).catch((err) => {
+        console.error("[Jobs:apply] email send failed:", err);
       });
+    } else {
+      console.warn("[Jobs:apply] SMTP not configured, skipping email notification");
     }
-
-    const from = process.env.SMTP_FROM || process.env.SMTP_USER;
-    const subject = `TruckMatch განაცხადი: ${job.title} (${job.route})`;
-
-    const driverLine = [
-      user.name ? `სახელი: ${user.name}` : null,
-      user.email ? `ელ-ფოსტა: ${user.email}` : null,
-      user.phone ? `ტელ: ${user.phone}` : null,
-      user.location ? `ლოკაცია: ${user.location}` : null,
-      user.experience ? `გამოცდილება: ${user.experience}` : null,
-      Array.isArray(user.categories) && user.categories.length ? `კატეგორიები: ${user.categories.join(", ")}` : null,
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    const jobLine = [
-      `სათაური: ${job.title}`,
-      `მარშრუტი: ${job.route}`,
-      `ტიპი: ${job.type}`,
-      `ფასი: ${job.price}`,
-      `თარიღი: ${job.date}`,
-      job.phone ? `კონტაქტი (ვაკანსიაზე): ${job.phone}` : null,
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    const text = `გამარჯობა!\n\nმიღებულია ახალი განაცხადი TruckMatch-დან.\n\nვაკანსია:\n${jobLine}\n\nმძღოლი:\n${driverLine}\n`;
-
-    await transport.sendMail({
-      from,
-      to: ownerEmail,
-      subject,
-      text,
-    });
 
     return res.json({ ok: true });
   } catch (err) {
